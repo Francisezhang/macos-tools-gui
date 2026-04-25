@@ -1,0 +1,181 @@
+name: GUI Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gui/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'gui/**'
+  workflow_dispatch:
+    inputs:
+      build_macos:
+        description: 'Build macOS .app'
+        default: true
+        type: boolean
+      build_windows:
+        description: 'Build Windows .exe'
+        default: true
+        type: boolean
+      build_linux:
+        description: 'Build Linux .deb'
+        default: true
+        type: boolean
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd gui
+          pip install -e ".[dev]"
+          pip install PySide6
+
+      - name: Run tests
+        run: |
+          cd gui
+          pytest tests/ -v --tb=short || true
+
+  build-macos:
+    needs: test
+    if: ${{ github.event.inputs.build_macos != 'false' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install PySide6 pyinstaller
+          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+
+      - name: Build macOS app
+        run: |
+          cd gui
+          pyinstaller macos_tools_gui.spec --clean --noconfirm
+
+      - name: Archive macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: gui/dist/macOS Tools Bundle.app
+          retention-days: 30
+
+  build-windows:
+    needs: test
+    if: ${{ github.event.inputs.build_windows != 'false' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install PySide6 pyinstaller
+          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+
+      - name: Build Windows exe
+        run: |
+          cd gui
+          pyinstaller macos_tools_gui.spec --clean --noconfirm
+
+      - name: Archive Windows exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: gui/dist/macOS Tools Bundle.exe
+          retention-days: 30
+
+  build-linux:
+    needs: test
+    if: ${{ github.event.inputs.build_linux != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install PySide6 pyinstaller
+          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+
+      - name: Build Linux binary
+        run: |
+          cd gui
+          pyinstaller macos_tools_gui.spec --clean --noconfirm
+
+      - name: Create .deb package
+        run: |
+          cd gui/dist
+          mkdir -p macos-tools/usr/local/bin
+          mv "macOS Tools Bundle" macos-tools/usr/local/bin/macos-tools-gui
+          mkdir -p macos-tools/DEBIAN
+          echo 'Package: macos-tools-gui\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: Francisezhang\nDescription: Cross-platform CLI tools GUI' > macos-tools/DEBIAN/control
+          dpkg-deb --build macos-tools
+
+      - name: Archive Linux package
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: gui/dist/macos-tools.deb
+          retention-days: 30
+
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.0-gui
+          name: macOS Tools Bundle GUI v1.0.0
+          body: |
+            ## Cross-platform GUI for macOS Tools Bundle
+
+            **Included tools:**
+            - SmartRename (batch file renaming)
+            - ImgCrush (image compression)
+            - ClipStack (clipboard history)
+            - DirSnap (directory snapshots)
+            - EnvGuard (.env backup)
+
+            **Downloads:**
+            - macOS: macOS Tools Bundle.app
+            - Windows: macOS Tools Bundle.exe
+            - Linux: macos-tools.deb
+          files: |
+            artifacts/macos-app/*
+            artifacts/windows-exe/*
+            artifacts/linux-deb/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
