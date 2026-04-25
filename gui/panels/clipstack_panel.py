@@ -176,34 +176,44 @@ class ClipStackPanel(BasePanel):
         if not CLI_AVAILABLE:
             self.status_label.setText("CLI not available")
             self.status_label.setStyleSheet("color: #ff4444;")
+            self.start_btn.setEnabled(False)
+            self.stop_btn.setEnabled(False)
             return
 
-        running = is_running()
-        if running:
-            self.status_label.setText("🟢 Running")
-            self.status_label.setStyleSheet("color: #00d400;")
-            self.start_btn.setEnabled(False)
-            self.stop_btn.setEnabled(True)
-        else:
-            self.status_label.setText("🔴 Stopped")
+        try:
+            running = is_running()
+            if running:
+                self.status_label.setText("🟢 Running")
+                self.status_label.setStyleSheet("color: #00d400;")
+                self.start_btn.setEnabled(False)
+                self.stop_btn.setEnabled(True)
+            else:
+                self.status_label.setText("🔴 Stopped")
+                self.status_label.setStyleSheet("color: #ff4444;")
+                self.start_btn.setEnabled(True)
+                self.stop_btn.setEnabled(False)
+        except Exception as e:
+            self.status_label.setText(f"Error: {str(e)[:20]}")
             self.status_label.setStyleSheet("color: #ff4444;")
-            self.start_btn.setEnabled(True)
-            self.stop_btn.setEnabled(False)
 
     def _refresh_history(self):
         """Refresh clipboard history table."""
         if not CLI_AVAILABLE:
             return
 
-        ensure_db()
-        entries = get_entries(limit=50)
-        self._display_entries(entries)
+        try:
+            ensure_db()
+            entries = get_entries(limit=50)
+            self._display_entries(entries)
 
-        # Update stats
-        stats = get_stats()
-        self.stats_label.setText(
-            f"{stats['total_entries']} entries | {stats['pinned_entries']} pinned"
-        )
+            # Update stats
+            stats = get_stats()
+            self.stats_label.setText(
+                f"{stats.get('total_entries', 0)} entries | {stats.get('pinned_entries', 0)} pinned"
+            )
+        except Exception:
+            # Silently fail on background refresh
+            pass
 
     def _display_entries(self, entries: List[Dict]):
         """Display entries in table."""

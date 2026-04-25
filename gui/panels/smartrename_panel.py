@@ -31,6 +31,7 @@ from gui.widgets.base_panel import BasePanel
 class PreviewWorker(QThread):
     """Background thread for generating preview."""
     finished = Signal(list)
+    error = Signal(str)
 
     def __init__(self, directory: Path, mode: str, pattern: str, recursive: bool, **kwargs):
         super().__init__()
@@ -42,13 +43,16 @@ class PreviewWorker(QThread):
 
     def run(self):
         if not CLI_AVAILABLE:
-            self.finished.emit([])
+            self.error.emit("CLI backend not available")
             return
 
-        files = collect_files(self.directory, self.pattern, self.recursive)
-        pattern_func = get_pattern_func(self.mode, **self.kwargs)
-        operations = preview_rename(files, self.mode, pattern_func, **self.kwargs)
-        self.finished.emit(operations)
+        try:
+            files = collect_files(self.directory, self.pattern, self.recursive)
+            pattern_func = get_pattern_func(self.mode, **self.kwargs)
+            operations = preview_rename(files, self.mode, pattern_func, **self.kwargs)
+            self.finished.emit(operations)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class SmartRenamePanel(BasePanel):
@@ -320,23 +324,36 @@ class SmartRenamePanel(BasePanel):
             kwargs["regex"] = self.regex_check.isChecked()
 
         # Run preview worker
+        self.preview_btn.setEnabled(False)
+        self.preview_btn.setText("Loading...")
+
         self.preview_worker = PreviewWorker(
             self.selected_directory, mode, pattern, recursive, **kwargs
         )
         self.preview_worker.finished.connect(self._display_preview)
+        self.preview_worker.error.connect(self._on_preview_error)
         self.preview_worker.start()
+
+    def _on_preview_error(self, error_msg: str):
+        """Handle preview error."""
+        self.preview_btn.setEnabled(True)
+        self.preview_btn.setText("Preview")
+        QMessageBox.warning(self, "Preview Error", error_msg)
 
     def _display_preview(self, operations: List[Dict]):
         """Display preview results in table."""
+        self.preview_btn.setEnabled(True)
+        self.preview_btn.setText("Preview")
+
         self.preview_operations = operations
         self.preview_table.setRowCount(len(operations))
 
         for row, op in enumerate(operations):
-            old_item = QTableWidgetItem(op["old_name"])
-            new_item = QTableWidgetItem(op["new_name"])
+            old_item = QTableWidgetItem(op.get("old_name", op.get("old_path", "").split("/")[-1]))
+            new_item = QTableWidgetItem(op.get("new_name", op.get("new_path", "").split("/")[-1]))
 
             # Highlight changes
-            if op["old_name"] != op["new_name"]:
+            if old_item.text() != new_item.text():
                 new_item.setForeground(QColor("#0078d4"))
 
             self.preview_table.setItem(row, 0, old_item)

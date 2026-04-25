@@ -196,26 +196,34 @@ class EnvGuardPanel(BasePanel):
             self.entry_count_label.setText("CLI not available")
             return
 
-        entries = list_entries()
-        self.vault_table.setRowCount(len(entries))
+        try:
+            entries = list_entries()
+            self.vault_table.setRowCount(len(entries))
 
-        for row, entry in enumerate(entries):
-            id_item = QTableWidgetItem(entry["id"])
-            name_item = QTableWidgetItem(entry["name"])
-            project_item = QTableWidgetItem(entry["project"])
-            created_item = QTableWidgetItem(entry["created_at"][:10])
+            for row, entry in enumerate(entries):
+                id_item = QTableWidgetItem(entry.get("id", ""))
+                name_item = QTableWidgetItem(entry.get("name", ""))
+                project_item = QTableWidgetItem(entry.get("project", ""))
+                created_at = entry.get("created_at", "")
+                created_item = QTableWidgetItem(created_at[:10] if created_at else "")
 
-            self.vault_table.setItem(row, 0, id_item)
-            self.vault_table.setItem(row, 1, name_item)
-            self.vault_table.setItem(row, 2, project_item)
-            self.vault_table.setItem(row, 3, created_item)
+                self.vault_table.setItem(row, 0, id_item)
+                self.vault_table.setItem(row, 1, name_item)
+                self.vault_table.setItem(row, 2, project_item)
+                self.vault_table.setItem(row, 3, created_item)
 
-        self.entry_count_label.setText(f"{len(entries)} entries")
+            self.entry_count_label.setText(f"{len(entries)} entries")
+        except Exception as e:
+            self.entry_count_label.setText(f"Error: {str(e)[:30]}")
 
     def _add_env_file(self):
         """Add a .env file to vault."""
         if not self.password:
             QMessageBox.warning(self, "No Password", "Please unlock vault first.")
+            return
+
+        if not CLI_AVAILABLE:
+            QMessageBox.warning(self, "CLI Not Available", "EnvGuard CLI backend is not installed.")
             return
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -226,22 +234,25 @@ class EnvGuardPanel(BasePanel):
         )
 
         if file_path:
-            name = Path(file_path).stem
+            try:
+                name = Path(file_path).stem
 
-            # Read and encrypt
-            content = Path(file_path).read_text()
-            encrypted = encrypt(content, self.password)
+                # Read and encrypt
+                content = Path(file_path).read_text()
+                encrypted = encrypt(content, self.password)
 
-            # Add to vault
-            entry = add_to_vault(Path(file_path), encrypted, name=name)
+                # Add to vault
+                entry = add_to_vault(Path(file_path), encrypted, name=name)
 
-            QMessageBox.information(
-                self,
-                "Added",
-                f"Added {name} to vault.\nEntry ID: {entry['id']}"
-            )
+                QMessageBox.information(
+                    self,
+                    "Added",
+                    f"Added {name} to vault.\nEntry ID: {entry.get('id', 'N/A')}"
+                )
 
-            self._refresh_vault()
+                self._refresh_vault()
+            except Exception as e:
+                QMessageBox.warning(self, "Add Failed", str(e))
 
     def _get_selected_entry(self):
         """Get and decrypt selected entry."""
@@ -310,18 +321,21 @@ class EnvGuardPanel(BasePanel):
         if not CLI_AVAILABLE:
             return
 
-        scan_path = Path(self.scan_dir_label.text())
-        results = scan_for_env_files(scan_path)
+        try:
+            scan_path = Path(self.scan_dir_label.text())
+            results = scan_for_env_files(scan_path)
 
-        # Show results
-        warnings = results.get("warnings", [])
-        env_files = results.get("files", [])
+            # Show results
+            warnings = results.get("warnings", [])
+            env_files = results.get("files", [])
 
-        msg = f"Found {len(env_files)} .env files"
-        if warnings:
-            msg += f"\n⚠️ {len(warnings)} warnings (not in .gitignore)"
+            msg = f"Found {len(env_files)} .env files"
+            if warnings:
+                msg += f"\n⚠️ {len(warnings)} warnings (not in .gitignore)"
 
-        QMessageBox.information(self, "Scan Results", msg)
+            QMessageBox.information(self, "Scan Results", msg)
+        except Exception as e:
+            QMessageBox.warning(self, "Scan Error", str(e))
 
     def _sync_to_cloud(self):
         """Sync vault to cloud storage."""

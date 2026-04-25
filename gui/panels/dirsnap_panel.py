@@ -217,26 +217,31 @@ class DirSnapPanel(BasePanel):
         if self.exclude_input.text():
             excludes = [e.strip() for e in self.exclude_input.text().split(",")]
 
-        # Scan directory
-        self.scan_result = scan_directory(
-            self.selected_directory,
-            recursive=self.recursive_check.isChecked(),
-            include_hidden=self.hidden_check.isChecked(),
-            excludes=excludes
-        )
+        try:
+            # Scan directory
+            self.scan_result = scan_directory(
+                self.selected_directory,
+                recursive=self.recursive_check.isChecked(),
+                include_hidden=self.hidden_check.isChecked(),
+                excludes=excludes
+            )
 
-        # Display tree
-        self._display_tree()
+            # Display tree
+            self._display_tree()
 
-        # Generate output
-        self._generate_output()
+            # Generate output
+            self._generate_output()
 
-        # Update stats
-        self.stats_label.setText(
-            f"{self.scan_result['stats']['file_count']} files | "
-            f"{self.scan_result['stats']['dir_count']} dirs | "
-            f"{self.scan_result['stats']['total_size'] / 1024:.1f} KB"
-        )
+            # Update stats
+            stats = self.scan_result.get("stats", {})
+            self.stats_label.setText(
+                f"{stats.get('file_count', 0)} files | "
+                f"{stats.get('dir_count', 0)} dirs | "
+                f"{stats.get('total_size', 0) / 1024:.1f} KB"
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "Scan Error", str(e))
+            self.stats_label.setText("Scan failed")
 
     def _display_tree(self):
         """Display directory tree in tree widget."""
@@ -256,15 +261,18 @@ class DirSnapPanel(BasePanel):
     def _add_tree_items(self, parent_item: QTreeWidgetItem, items: List[Dict]):
         """Add tree items recursively."""
         for item in items:
-            if item["type"] == "directory":
-                dir_item = QTreeWidgetItem([item["name"], "", "Directory"])
+            item_type = item.get("type", "file")
+            if item_type == "directory":
+                dir_item = QTreeWidgetItem([item.get("name", ""), "", "Directory"])
                 dir_item.setForeground(0, QColor("#00d400"))
                 parent_item.addChild(dir_item)
-                if item["children"]:
-                    self._add_tree_items(dir_item, item["children"])
+                children = item.get("children", [])
+                if children:
+                    self._add_tree_items(dir_item, children)
             else:
-                size_str = f"{item['size'] / 1024:.1f} KB" if item['size'] < 1024 * 1024 else f"{item['size'] / 1024 / 1024:.2f} MB"
-                file_item = QTreeWidgetItem([item["name"], size_str, item["ext"]])
+                size = item.get('size', 0)
+                size_str = f"{size / 1024:.1f} KB" if size < 1024 * 1024 else f"{size / 1024 / 1024:.2f} MB"
+                file_item = QTreeWidgetItem([item.get("name", ""), size_str, item.get("ext", "")])
                 parent_item.addChild(file_item)
 
     def _generate_output(self):

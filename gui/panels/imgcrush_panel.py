@@ -32,6 +32,7 @@ class CompressWorker(QThread):
     """Background thread for compression."""
     progress = Signal(int)
     finished = Signal(dict)
+    error = Signal(str)
 
     def __init__(self, directory: Path, quality: int, max_width: int, pattern: str):
         super().__init__()
@@ -42,16 +43,19 @@ class CompressWorker(QThread):
 
     def run(self):
         if not CLI_AVAILABLE:
-            self.finished.emit({"success": False, "error": "CLI not available"})
+            self.error.emit("CLI backend not available")
             return
 
-        result = compress_directory(
-            self.directory,
-            quality=self.quality,
-            max_width=self.max_width,
-            pattern=self.pattern,
-        )
-        self.finished.emit(result)
+        try:
+            result = compress_directory(
+                self.directory,
+                quality=self.quality,
+                max_width=self.max_width,
+                pattern=self.pattern,
+            )
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class ImgCrushPanel(BasePanel):
@@ -305,22 +309,35 @@ class ImgCrushPanel(BasePanel):
                 pattern
             )
             self.compress_worker.finished.connect(self._display_results)
+            self.compress_worker.error.connect(self._on_compress_error)
             self.compress_worker.start()
 
             self.progress_bar.setValue(0)
             self.execute_btn.setEnabled(False)
+            self.execute_btn.setText("Processing...")
 
         elif operation == "Convert HEIC to JPG":
-            result = convert_directory(
-                self.selected_directory,
-                target_format="jpg",
-                pattern="*.heic"
-            )
-            self._display_results(result)
+            try:
+                result = convert_directory(
+                    self.selected_directory,
+                    target_format="jpg",
+                    pattern="*.heic"
+                )
+                self._display_results(result)
+            except Exception as e:
+                QMessageBox.warning(self, "Error", str(e))
+
+    def _on_compress_error(self, error_msg: str):
+        """Handle compression error."""
+        self.execute_btn.setEnabled(True)
+        self.execute_btn.setText("Execute")
+        self.progress_bar.setValue(0)
+        QMessageBox.warning(self, "Compression Error", error_msg)
 
     def _display_results(self, result: dict):
         """Display compression results."""
         self.execute_btn.setEnabled(True)
+        self.execute_btn.setText("Execute")
         self.progress_bar.setValue(100)
 
         if not result.get("success"):
