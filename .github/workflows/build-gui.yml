@@ -20,6 +20,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -135,6 +138,8 @@ jobs:
     needs: [build-macos, build-windows, build-linux]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -142,6 +147,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: List artifacts
+        run: ls -la artifacts/ && ls -la artifacts/*/ || true
 
       - name: Create release
         uses: softprops/action-gh-release@v1
@@ -163,8 +171,8 @@ jobs:
             - Windows: macOS Tools Bundle (folder with exe)
             - Linux: macos-tools.deb
           files: |
-            artifacts/macos-app/*
-            artifacts/windows-exe/*
-            artifacts/linux-deb/*
+            artifacts/macOS Tools Bundle.app/*
+            artifacts/macOS Tools Bundle/*
+            artifacts/macos-tools.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
