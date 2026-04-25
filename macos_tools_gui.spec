@@ -93,6 +93,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='resources/icons/app.ico' if sys.platform == 'win32' else None,
 )
 
 coll = COLLECT(
