@@ -121,7 +121,7 @@ jobs:
           mkdir -p macos-tools/usr/local/bin
           mv "macOS Tools Bundle" macos-tools/usr/local/bin/macos-tools-gui
           mkdir -p macos-tools/DEBIAN
-          echo 'Package: macos-tools-gui\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: Francisezhang\nDescription: Cross-platform CLI tools GUI' > macos-tools/DEBIAN/control
+          printf 'Package: macos-tools-gui\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: Francisezhang\nDescription: Cross-platform CLI tools GUI\n' > macos-tools/DEBIAN/control
           dpkg-deb --build macos-tools
 
       - name: Archive Linux package
