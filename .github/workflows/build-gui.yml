@@ -3,12 +3,8 @@ name: GUI Build
 on:
   push:
     branches: [main]
-    paths:
-      - 'gui/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'gui/**'
   workflow_dispatch:
     inputs:
       build_macos:
@@ -37,14 +33,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd gui
-          pip install -e ".[dev]"
-          pip install PySide6
+          pip install PySide6 pytest
+          pip install -e ./gui
 
       - name: Run tests
         run: |
-          cd gui
-          pytest tests/ -v --tb=short || true
+          pytest gui/tests/ -v --tb=short || true
 
   build-macos:
     needs: test
@@ -61,18 +55,17 @@ jobs:
       - name: Install dependencies
         run: |
           pip install PySide6 pyinstaller
-          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+          pip install -e ./gui
 
       - name: Build macOS app
         run: |
-          cd gui
-          pyinstaller macos_tools_gui.spec --clean --noconfirm
+          pyinstaller gui/macos_tools_gui.spec --clean --noconfirm
 
       - name: Archive macOS app
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: gui/dist/macOS Tools Bundle.app
+          path: dist/macOS Tools Bundle.app
           retention-days: 30
 
   build-windows:
@@ -89,19 +82,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PySide6 pyinstaller
-          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+          pip install PySide6 pyinstaller Pillow
+          pip install -e ./gui
 
       - name: Build Windows exe
         run: |
-          cd gui
-          pyinstaller macos_tools_gui.spec --clean --noconfirm
+          pyinstaller gui/macos_tools_gui.spec --clean --noconfirm
 
       - name: Archive Windows exe
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: gui/dist/macOS Tools Bundle.exe
+          path: dist/macOS Tools Bundle
           retention-days: 30
 
   build-linux:
@@ -118,17 +110,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PySide6 pyinstaller
-          pip install -e ../smartrename -e ../imgcrush -e ../clipstack -e ../dirsnap -e ../envguard
+          pip install PySide6 pyinstaller Pillow
+          pip install -e ./gui
 
       - name: Build Linux binary
         run: |
-          cd gui
-          pyinstaller macos_tools_gui.spec --clean --noconfirm
+          pyinstaller gui/macos_tools_gui.spec --clean --noconfirm
 
       - name: Create .deb package
         run: |
-          cd gui/dist
+          cd dist
           mkdir -p macos-tools/usr/local/bin
           mv "macOS Tools Bundle" macos-tools/usr/local/bin/macos-tools-gui
           mkdir -p macos-tools/DEBIAN
@@ -139,7 +130,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-deb
-          path: gui/dist/macos-tools.deb
+          path: dist/macos-tools.deb
           retention-days: 30
 
   release:
@@ -157,8 +148,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.0-gui
-          name: macOS Tools Bundle GUI v1.0.0
+          tag_name: v1.0.0-gui-${{ github.run_number }}
+          name: macOS Tools Bundle GUI Build ${{ github.run_number }}
           body: |
             ## Cross-platform GUI for macOS Tools Bundle
 
@@ -171,7 +162,7 @@ jobs:
 
             **Downloads:**
             - macOS: macOS Tools Bundle.app
-            - Windows: macOS Tools Bundle.exe
+            - Windows: macOS Tools Bundle (folder with exe)
             - Linux: macos-tools.deb
           files: |
             artifacts/macos-app/*
