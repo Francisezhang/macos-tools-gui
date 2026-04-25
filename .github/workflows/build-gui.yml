@@ -148,8 +148,18 @@ jobs:
         with:
           path: artifacts
 
-      - name: List artifacts
-        run: ls -la artifacts/ && ls -la artifacts/*/ || true
+      - name: Package macOS app
+        run: |
+          cd artifacts/macos-app
+          mkdir -p "macOS Tools Bundle.app"
+          mv Contents "macOS Tools Bundle.app/"
+          cd "macOS Tools Bundle.app"
+          zip -r ../macos-tools-bundle.zip .
+
+      - name: Package Windows exe
+        run: |
+          cd artifacts/windows-exe
+          zip -r windows-bundle.zip .
 
       - name: Create release
         uses: softprops/action-gh-release@v1
@@ -167,12 +177,12 @@ jobs:
             - EnvGuard (.env backup)
 
             **Downloads:**
-            - macOS: macOS Tools Bundle.app
-            - Windows: macOS Tools Bundle (folder with exe)
+            - macOS: macos-tools-bundle.zip
+            - Windows: windows-bundle.zip
             - Linux: macos-tools.deb
           files: |
-            artifacts/macOS Tools Bundle.app/*
-            artifacts/macOS Tools Bundle/*
-            artifacts/macos-tools.deb
+            artifacts/macos-app/macos-tools-bundle.zip
+            artifacts/windows-exe/windows-bundle.zip
+            artifacts/linux-deb/macos-tools.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
