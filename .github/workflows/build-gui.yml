@@ -150,11 +150,13 @@ jobs:
 
       - name: Package macOS app
         run: |
-          cd artifacts/macos-app
+          # Artifact下载后Contents在artifacts/macos-app/目录下
+          # 需要重新创建完整的.app结构
+          cd artifacts
           mkdir -p "macOS Tools Bundle.app"
-          mv Contents "macOS Tools Bundle.app/"
-          cd "macOS Tools Bundle.app"
-          zip -r ../macos-tools-bundle.zip .
+          mv macos-app/Contents "macOS Tools Bundle.app/"
+          # 在父目录创建zip，这样包含整个.app
+          zip -r macos-tools-bundle.zip "macOS Tools Bundle.app"
 
       - name: Package Windows exe
         run: |
@@ -181,7 +183,7 @@ jobs:
             - Windows: windows-bundle.zip
             - Linux: macos-tools.deb
           files: |
-            artifacts/macos-app/macos-tools-bundle.zip
+            artifacts/macos-tools-bundle.zip
             artifacts/windows-exe/windows-bundle.zip
             artifacts/linux-deb/macos-tools.deb
         env:
