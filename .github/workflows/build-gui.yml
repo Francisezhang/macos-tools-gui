@@ -62,11 +62,25 @@ jobs:
         run: |
           pyinstaller macos_tools_gui.spec --clean --noconfirm
 
-      - name: Archive macOS app
+      - name: Verify app structure
+        run: |
+          ls -la "dist/macOS Tools Bundle.app/"
+          ls -la "dist/macOS Tools Bundle.app/Contents/"
+          ls -la "dist/macOS Tools Bundle.app/Contents/MacOS/"
+
+      - name: Create zip package
+        run: |
+          cd dist
+          # Create zip preserving .app structure
+          ditto -c -k --keepParent "macOS Tools Bundle.app" macos-tools-bundle.zip
+          # Verify zip contents
+          unzip -l macos-tools-bundle.zip | head -20
+
+      - name: Archive macOS package
         uses: actions/upload-artifact@v4
         with:
-          name: macos-app
-          path: dist/macOS Tools Bundle.app
+          name: macos-package
+          path: dist/macos-tools-bundle.zip
           retention-days: 30
 
   build-windows:
@@ -148,16 +162,6 @@ jobs:
         with:
           path: artifacts
 
-      - name: Package macOS app
-        run: |
-          # Artifact下载后Contents在artifacts/macos-app/目录下
-          # 需要重新创建完整的.app结构
-          cd artifacts
-          mkdir -p "macOS Tools Bundle.app"
-          mv macos-app/Contents "macOS Tools Bundle.app/"
-          # 在父目录创建zip，这样包含整个.app
-          zip -r macos-tools-bundle.zip "macOS Tools Bundle.app"
-
       - name: Package Windows exe
         run: |
           cd artifacts/windows-exe
@@ -179,11 +183,16 @@ jobs:
             - EnvGuard (.env backup)
 
             **Downloads:**
-            - macOS: macos-tools-bundle.zip
-            - Windows: windows-bundle.zip
+            - macOS: macos-tools-bundle.zip (unzip to get .app)
+            - Windows: windows-bundle.zip (unzip and run .exe)
             - Linux: macos-tools.deb
+
+            **Installation:**
+            - macOS: Unzip, then double-click the .app file
+            - Windows: Unzip, then run macOS Tools Bundle.exe
+            - Linux: `sudo dpkg -i macos-tools.deb`
           files: |
-            artifacts/macos-tools-bundle.zip
+            artifacts/macos-package/macos-tools-bundle.zip
             artifacts/windows-exe/windows-bundle.zip
             artifacts/linux-deb/macos-tools.deb
         env:
