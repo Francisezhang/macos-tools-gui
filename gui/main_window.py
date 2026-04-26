@@ -10,13 +10,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont, QIcon
 
-# Import panels
-from gui.panels.smartrename_panel import SmartRenamePanel
-from gui.panels.imgcrush_panel import ImgCrushPanel
-from gui.panels.dirsnap_panel import DirSnapPanel
-from gui.panels.clipstack_panel import ClipStackPanel
-from gui.panels.envguard_panel import EnvGuardPanel
-
 
 class ToolButton(QPushButton):
     """Custom styled button for tool selection."""
@@ -47,6 +40,111 @@ class ToolButton(QPushButton):
         title_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
         title_label.setStyleSheet("color: #ffffff;")
         layout.addWidget(title_label)
+
+
+class PlaceholderPanel(QWidget):
+    """Placeholder panel when CLI backend is not available."""
+
+    def __init__(self, tool_name: str, tool_icon: str, cli_name: str):
+        super().__init__()
+        self.tool_name = tool_name
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+
+        # Icon
+        icon = QLabel(tool_icon)
+        icon.setFont(QFont("Segoe UI Emoji", 48))
+        icon.setAlignment(Qt.AlignCenter)
+        layout.addWidget(icon)
+
+        # Title
+        title = QLabel(tool_name)
+        title.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        title.setStyleSheet("color: #ffffff;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        layout.addSpacing(20)
+
+        # Warning message
+        msg = QLabel(f"CLI backend ({cli_name}) is not installed or not found.\n\n"
+                    f"To use this tool, install the CLI package:\n"
+                    f"pip install {cli_name}\n\n"
+                    f"Or run the GUI from the full bundle directory.")
+        msg.setFont(QFont("Segoe UI", 12))
+        msg.setStyleSheet("color: #888888;")
+        msg.setAlignment(Qt.AlignCenter)
+        layout.addWidget(msg)
+
+        layout.addSpacing(20)
+
+        # Install button
+        install_btn = QPushButton(f"pip install {cli_name}")
+        install_btn.setFixedSize(200, 40)
+        install_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078d4;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1084d8;
+            }
+        """)
+        install_btn.clicked.connect(self._install_cli)
+        layout.addWidget(install_btn)
+
+        self.cli_name = cli_name
+
+    def _install_cli(self):
+        """Attempt to install CLI package."""
+        import subprocess
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", self.cli_name],
+                capture_output=True
+            )
+            QMessageBox.information(
+                self,
+                "Installation",
+                f"Attempted to install {self.cli_name}.\n\n"
+                "If successful, restart the application to use this tool."
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Installation failed: {str(e)}")
+
+
+def create_panel_safe(panel_name: str) -> QWidget:
+    """Safely create a panel, returning placeholder if import fails."""
+    try:
+        if panel_name == "smartrename":
+            from gui.panels.smartrename_panel import SmartRenamePanel
+            return SmartRenamePanel()
+        elif panel_name == "imgcrush":
+            from gui.panels.imgcrush_panel import ImgCrushPanel
+            return ImgCrushPanel()
+        elif panel_name == "clipstack":
+            from gui.panels.clipstack_panel import ClipStackPanel
+            return ClipStackPanel()
+        elif panel_name == "dirsnap":
+            from gui.panels.dirsnap_panel import DirSnapPanel
+            return DirSnapPanel()
+        elif panel_name == "envguard":
+            from gui.panels.envguard_panel import EnvGuardPanel
+            return EnvGuardPanel()
+    except ImportError as e:
+        # Return placeholder panel
+        tool_info = {
+            "smartrename": ("SmartRename", "📝", "smartrename"),
+            "imgcrush": ("ImgCrush", "🖼️", "imgcrush"),
+            "clipstack": ("ClipStack", "📋", "clipstack"),
+            "dirsnap": ("DirSnap", "🌳", "dirsnap"),
+            "envguard": ("EnvGuard", "🔐", "envguard"),
+        }
+        info = tool_info.get(panel_name, (panel_name, "❓", panel_name))
+        return PlaceholderPanel(info[0], info[1], info[2])
 
 
 class MainWindow(QMainWindow):
@@ -145,16 +243,11 @@ class MainWindow(QMainWindow):
         home_panel = self._create_home_panel()
         self.content_stack.addWidget(home_panel)
 
-        # Tool panels
-        self.panels = {
-            "smartrename": SmartRenamePanel(),
-            "imgcrush": ImgCrushPanel(),
-            "clipstack": ClipStackPanel(),
-            "dirsnap": DirSnapPanel(),
-            "envguard": EnvGuardPanel(),
-        }
-
-        for panel in self.panels.values():
+        # Tool panels (lazy load with error handling)
+        self.panels = {}
+        for tool_id in self.tools.keys():
+            panel = create_panel_safe(tool_id)
+            self.panels[tool_id] = panel
             self.content_stack.addWidget(panel)
 
         main_layout.addWidget(self.content_stack, stretch=1)
@@ -190,6 +283,15 @@ class MainWindow(QMainWindow):
         desc.setStyleSheet("color: #666666;")
         desc.setAlignment(Qt.AlignCenter)
         layout.addWidget(desc)
+
+        layout.addSpacing(20)
+
+        # Note about standalone mode
+        note = QLabel("Note: Running in standalone mode.\nCLI backends may require separate installation.")
+        note.setFont(QFont("Segoe UI", 10))
+        note.setStyleSheet("color: #555555;")
+        note.setAlignment(Qt.AlignCenter)
+        layout.addWidget(note)
 
         return panel
 
